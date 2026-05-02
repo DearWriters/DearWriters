@@ -1,0 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Cinzel:wght@400;600;700&family=Special+Elite&family=UnifrakturMaguntia&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Cormorant Garamond", ui-serif, Georgia, serif;
+  --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
+  --font-display: "Cinzel", serif;
+  --font-mono: "Special Elite", "Courier New", Courier, monospace;
+  --font-gothic: "UnifrakturMaguntia", serif;
+
+  --color-wood-50: #fbf8f3;
+  --color-wood-100: #f4ebd8;
+  --color-wood-200: #eaddc5;
+  --color-wood-300: #d3c5b0;
+  --color-wood-400: #b8a384;
+  --color-wood-500: #9c8462;
+  --color-wood-600: #8b7355;
+  --color-wood-700: #6e5a42;
+  --color-wood-800: #5c4a3d;
+  --color-wood-900: #3b3024;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-wood-100);
+  }
+  html.dark {
+    filter: invert(1) hue-rotate(180deg);
+  }
+  html.dark img, 
+  html.dark canvas, 
+  html.dark video,
+  html.dark .no-invert {
+    filter: invert(1) hue-rotate(180deg);
+  }
+
+  body {
+    @apply font-sans text-wood-900 antialiased bg-wood-100;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  }
+  input, textarea {
+    @apply caret-[#8b0000];
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-wood-200 border-l-2 border-wood-300;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-wood-600 border-2 border-wood-200 hover:bg-wood-800 transition-colors;
+  }
+}
+
+@layer utilities {
+  .ornate-border {
+    border: 4px double var(--color-wood-600);
+    outline: 1px solid var(--color-wood-600);
+    outline-offset: 2px;
+  }
+  .wax-seal {
+    @apply bg-red-900 text-wood-100 rounded-full shadow-[inset_0_0_10px_rgba(0,0,0,0.5),0_4px_6px_rgba(0,0,0,0.3)] border-2 border-red-950;
+  }
+  .paper-sheet {
+    @apply bg-wood-50 shadow-[0_0_40px_rgba(0,0,0,0.1),inset_0_0_20px_rgba(139,115,85,0.05)] border border-wood-300;
+  }
+
+  @keyframes burn {
+    0% {
+      filter: brightness(1) contrast(1) sepia(0);
+      opacity: 1;
+      transform: scale(1);
+    }
+    30% {
+      filter: brightness(1.2) contrast(1.5) sepia(0.8) hue-rotate(-30deg) saturate(2);
+      opacity: 0.9;
+      transform: scale(0.98) rotate(1deg);
+      box-shadow: 0 0 20px 10px rgba(255, 100, 0, 0.6);
+    }
+    60% {
+      filter: brightness(0.6) contrast(2) sepia(1) hue-rotate(-50deg) saturate(3);
+      opacity: 0.5;
+      transform: scale(0.95) translateY(10px) rotate(-1deg);
+      box-shadow: 0 0 40px 20px rgba(255, 50, 0, 0.8);
+    }
+    100% {
+      filter: brightness(0) contrast(3) sepia(1) hue-rotate(-50deg);
+      opacity: 0;
+      transform: scale(0.9) translateY(20px);
+      box-shadow: 0 0 60px 30px rgba(0, 0, 0, 0);
+    }
+  }
+
+  .burning-paper {
+    animation: burn 2s ease-in forwards !important;
+    pointer-events: none !important;
+  }
+
+  @keyframes fade-out {
+    0% {
+      opacity: var(--stain-opacity);
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .animate-fade-out {
+    animation: fade-out 3s ease-in forwards;
+  }
+
+  @keyframes danmaku {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(calc(-100% - 100vw));
+    }
+  }
+
+  .animate-danmaku {
+    animation: danmaku linear forwards;
+  }
+}

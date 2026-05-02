@@ -1,0 +1,424 @@
+export type DailyWordStat = {
+  date: string;       // YYYY-MM-DD
+  grossAdded: number; // 当日所有增加字数的总和（不计删除）
+  netChange: number;  // 当日最终字数与昨日最终字数的差值（可正可负）
+  totalWords: number; // 当日结束时的总字数快照
+};
+
+export type Work = { id: string; title: string; createdAt: number; order: number; characterFields?: CharacterFieldDef[]; lensesDescription?: string; icon?: string; coverImage?: string; dailyStats?: Record<string, DailyWordStat> };
+export type Character = { id: string; workId: string; name: string; description: string; order: number; customFields?: Record<string, any>; relationships?: Record<string, string> };
+export type Chapter = { id: string; workId: string; title: string; order: number; goalWordCount?: number; deadline?: string; completed?: boolean; archived?: boolean };
+export type Scene = { id: string; chapterId: string; title: string; order: number; characterIds: string[]; characterPresence?: Record<string, { note?: string }>; statusColor?: string; linkedEventIds?: string[]; goalWordCount?: number; deadline?: string };
+export type Block = { id: string; documentId: string; type: 'text'; isLens?: boolean; lensColor?: string; content: string; order: number; notes?: string; linkedLensIds?: string[]; description?: string; completed?: boolean; pinned?: boolean; draftContent?: string; isComparing?: boolean; tags?: string[]; alignment?: 'left' | 'center' | 'right' };
+
+export type ScriptDraft = {
+  id: string;
+  workId: string;
+  title: string;
+  characterIds: string[];
+  content: string;
+  createdAt: number;
+};
+
+export type Location = { id: string; workId: string; name: string; description: string; order: number; coordinates?: { x: number, y: number, z: number } };
+
+export type Tag = {
+  id: string;
+  workId: string;
+  name: string;
+  color?: string;
+};
+
+export type TimelineEvent = {
+  id: string;
+  workId: string;
+  title: string;
+  timestamp: string;
+  locationId?: string;
+  description?: string;
+  characterActions: Record<string, string>;
+  linkedEventIds?: string[];
+  tagIds?: string[];
+  color?: string;
+  order: number;
+  duration?: number; // Abstract duration units
+  importance?: number; // 1-5
+  startTime?: number; // Start time on the timeline (determines if in pool)
+  horizontalIds?: string[];
+  verticalIds?: string[];
+};
+
+export type CharacterFieldType = 'text' | 'number' | 'select' | 'multiselect';
+export type CharacterFieldDef = { id: string; name: string; type: CharacterFieldType; options: string[] };
+
+export type Deadline = {
+  id: string;
+  workId: string;
+  title: string;
+  date: string;
+  completed: boolean;
+};
+
+
+export type InboxTag = {
+  id: string;
+  name: string;
+  color?: string;
+};
+
+export type Note = {
+  id: string;
+  content: string;
+  createdAt: number;
+  workId: string | null;
+  sceneId: string | null;
+  tagIds?: string[];
+};
+
+export type InboxItem = {
+  id: string;
+  content: string;
+  createdAt: number;
+  tagIds?: string[];
+};
+
+export type SceneSnapshot = {
+  id: string;
+  sceneId: string;
+  name: string;
+  createdAt: number;
+  blocks: Block[];
+};
+
+export type HistoryAction = 
+  | { type: 'DELETE_BLOCK'; block: Block; index: number }
+  | { type: 'ADD_BLOCK'; block: Block; index: number }
+  | { type: 'MERGE_BLOCK'; blockId: string; prevBlockId: string; originalPrevContent: string; deletedBlock: Block; index: number }
+  | { type: 'REMOVE_LENS'; blockId: string; originalLensColor?: string }
+  | { type: 'RESTORE_SNAPSHOT'; sceneId: string; previousBlocks: Block[]; restoredBlocks: Block[] };
+
+export type MetroBranchDirection = 1 | -1;
+
+export type MetroNode = {
+  id: string;
+  lineId: string;
+  eventId: string;
+  nextId: string | null;
+  branches: {
+    nodeId: string;
+    direction: MetroBranchDirection;
+  }[];
+};
+
+export type MetroLine = {
+  id: string;
+  workId: string;
+  title: string;
+  rootNodeId: string | null;
+  color?: string;
+};
+
+export type ChapterSnapshot = {
+  id: string;
+  chapterId: string;
+  versionName: string;
+  data: {
+    chapter: Chapter;
+    scenes: Scene[];
+    blocks: Block[];
+  };
+  timestamp: number;
+  note?: string;
+};
+
+export type PlatformChapterStatus = {
+  chapterId: string;
+  lastPublishedSnapshotId: string | null;
+  status: 'published' | 'to_update' | 'not_published';
+};
+
+export type PlatformTracking = {
+  id: string;
+  workId: string;
+  platformName: string;
+  chapterStatuses: Record<string, PlatformChapterStatus>; // chapterId -> status
+};
+
+export type TabConfigItem = {
+  id: 'design' | 'world' | 'deadline' | 'compile' | 'inbox' | 'blockDescriptions' | 'lenses' | 'timelineEvents' | 'metro' | 'montage' | 'dataManagement' | 'publish' | 'script';
+  label: string;
+  visible: boolean;
+};
+
+export type TabConfig = {
+  design: TabConfigItem[];
+  review: TabConfigItem[];
+  management: TabConfigItem[];
+};
+
+export type DailyStats = {
+  grossAdded: number; // 当日所有增加字数的总和（不计删除）
+  netChange: number;  // 当日最终字数与昨日最终字数的差值（可正可负）
+  totalWords: number; // 当日结束时的总字数快照
+  sceneCounts: Record<string, number>;
+};
+
+export type LabPost = { id: string; content: string; createdAt: number; likes: number };
+export type LabComment = { id: string; postId: string; content: string; createdAt: number };
+
+export type LabGameState = {
+  likes: number;
+  posts: LabPost[];
+  comments: LabComment[];
+  commentPool: string[];
+  upgrades: {
+    postCount: number;
+    likeRate: number;
+    commentRate: number;
+    commentQuality: number;
+  };
+  isPaused: boolean;
+  hasWon: boolean;
+};
+
+export type State = {
+  works: Work[];
+  characters: Character[];
+  locations: Location[];
+  tags: Tag[];
+  timelineEvents: TimelineEvent[];
+  chapters: Chapter[];
+  scenes: Scene[];
+  blocks: Block[];
+  deadlines: Deadline[];
+  notes: Note[];
+  inboxTags: InboxTag[];
+  snapshots: SceneSnapshot[];
+  metroLines: MetroLine[];
+  metroNodes: MetroNode[];
+  scriptDrafts: ScriptDraft[];
+  dailyWordCounts: Record<string, DailyStats>; // Date string -> Stats
+  activeWorkId: string | null;
+  activeDocumentId: string | null;
+  activeTab: 'design' | 'world' | 'deadline' | 'compile' | 'inbox' | 'blockDescriptions' | 'lenses' | 'timelineEvents' | 'metro' | 'montage' | 'dataManagement' | 'publish' | 'script' | 'lab';
+  appMode: 'design' | 'review' | 'management';
+  tabConfig: TabConfig;
+  timelineViewMode: 'list' | 'table' | 'chronology' | 'tags';
+  deadlineViewMode: 'global' | 'local';
+  activeLensId: string | null;
+  selectedEventId: string | null;
+  fullScreenMode: boolean;
+  focusMode: boolean;
+  scrollMode: boolean;
+  typewriterMode: boolean;
+  disguiseMode: boolean;
+  rightSidebarMode: 'closed' | 'micro' | 'meso' | 'macro' | 'info' | 'notes' | 'snapshots';
+  lastInspectorTab: 'micro' | 'meso' | 'macro' | 'info' | 'notes' | 'snapshots';
+  showDescriptions: boolean;
+  letterSpacing: number;
+  editorMargin: number;
+  timelineTableColumns?: any[];
+  supabaseSyncEnabled?: boolean;
+  syncStatus: 'idle' | 'syncing' | 'success' | 'error';
+  syncError: string | null;
+  lastModified: number;
+  lastSynced?: number;
+  cloudLastModified?: number;
+  isCheckingCloud: boolean;
+  lastDevice?: 'Desktop' | 'Mobile';
+  pastActions?: HistoryAction[];
+  futureActions?: HistoryAction[];
+  chapterSnapshots: ChapterSnapshot[];
+  platformTrackings: PlatformTracking[];
+  disguiseBackgroundText: string;
+  darkMode: boolean;
+  labGameState: LabGameState;
+};
+
+export interface LabGameSlice {
+  addLabPost: (content: string) => void;
+  addLabLike: (amount: number) => void;
+  buyLabUpgrade: (type: 'postCount' | 'likeRate' | 'commentRate' | 'commentQuality', cost: number) => void;
+  addLabCommentTemplate: (content: string) => void;
+  updateLabCommentTemplate: (index: number, content: string) => void;
+  deleteLabCommentTemplate: (index: number) => void;
+  tickLabGame: () => void;
+  toggleLabPause: () => void;
+  resetLabGame: () => void;
+}
+
+export type StoreState = State & UISlice & BlockSlice & ChapterSlice & CharacterSlice & SceneSlice & TagSlice & DeadlineSlice & NoteSlice & TimelineSlice & WorkSlice & LocationSlice & SnapshotSlice & MetroSlice & PublishSlice & ScriptSlice & StatsSlice & LabGameSlice & {
+  importData: (data: Partial<State>) => void;
+  mergeData: (data: Partial<State>) => void;
+  syncFromCloud: (data: Partial<State>) => void;
+  undo: () => void;
+  redo: () => void;
+  resetToDefault: () => void;
+};
+
+export interface StatsSlice {
+  updateDailyWordCount: (sceneId: string, newWordCount: number) => void;
+  removeSceneFromDailyCount: (sceneId: string) => void;
+  resetDailyWordCount: (date: string) => void;
+  updateDailyWordCountManual: (date: string, grossAdded: number, netChange: number, totalWords: number) => void;
+}
+
+export interface PublishSlice {
+  createChapterSnapshot: (chapterId: string, versionName: string, note?: string) => void;
+  deleteChapterSnapshot: (snapshotId: string) => void;
+  addPlatformTracking: (workId: string, platformName: string) => void;
+  deletePlatformTracking: (id: string) => void;
+  publishChapterToPlatform: (platformId: string, chapterId: string, snapshotId: string) => void;
+  syncPlatformStatus: (workId: string) => void;
+}
+
+export interface MetroSlice {
+  addMetroLine: (workId: string, title: string) => void;
+  updateMetroLine: (id: string, updates: Partial<MetroLine>) => void;
+  deleteMetroLine: (id: string) => void;
+  addMetroNodeBefore: (nodeId: string) => void;
+  addMetroNodeAfter: (nodeId: string) => void;
+  addMetroBranch: (nodeId: string, direction: MetroBranchDirection) => void;
+  replaceMetroNodeEvent: (nodeId: string, eventId: string) => void;
+  deleteMetroNode: (nodeId: string) => void;
+}
+
+export interface UISlice {
+  setActiveDocument: (documentId: string | null) => void;
+  setActiveTab: (tab: 'design' | 'world' | 'deadline' | 'compile' | 'inbox' | 'blockDescriptions' | 'lenses' | 'timelineEvents' | 'metro' | 'montage' | 'dataManagement' | 'publish' | 'script' | 'lab') => void;
+  setAppMode: (mode: 'design' | 'review' | 'management') => void;
+  updateTabConfig: (mode: 'design' | 'review' | 'management', config: TabConfigItem[]) => void;
+  setTimelineViewMode: (mode: 'list' | 'table' | 'chronology' | 'tags') => void;
+  toggleAppMode: () => void;
+  setDeadlineViewMode: (mode: 'global' | 'local') => void;
+  setActiveLens: (lensId: string | null) => void;
+  setSelectedEventId: (eventId: string | null) => void;
+  toggleFullScreenMode: () => void;
+  toggleFocusMode: () => void;
+  toggleScrollMode: () => void;
+  toggleTypewriterMode: () => void;
+  toggleDisguiseMode: () => void;
+  setRightSidebarMode: (mode: 'closed' | 'micro' | 'meso' | 'macro' | 'info' | 'notes' | 'snapshots') => void;
+  toggleShowDescriptions: () => void;
+  setLetterSpacing: (spacing: number) => void;
+  setEditorMargin: (margin: number) => void;
+  setTimelineTableColumns: (columns: any[]) => void;
+  toggleSupabaseSync: () => void;
+  saveHistoryVersion: (name: string) => Promise<boolean>;
+  pushToCloud: () => Promise<boolean>;
+  pullFromCloud: () => Promise<boolean>;
+  undoPull: () => boolean;
+  fetchHistory: () => Promise<any[]>;
+  restoreFromSnapshot: (snapshotId: string) => Promise<boolean>;
+  checkCloudVersion: () => Promise<void>;
+  setDisguiseBackgroundText: (text: string) => void;
+  toggleDarkMode: () => void;
+}
+
+export interface BlockSlice {
+  addBlock: (params: { id?: string, documentId: string, type: 'text', isLens?: boolean, lensColor?: string, afterBlockId?: string, notes?: string }) => void;
+  updateBlock: (block: Partial<Block> & { id: string }) => void;
+  deleteBlock: (blockId: string) => void;
+  removeLens: (blockId: string) => void;
+  mergeBlockUp: (blockId: string) => void;
+  bulkUpdateBlocks: (updates: { id: string; content: string }[]) => void;
+}
+
+export interface ChapterSlice {
+  addChapter: (workId: string, title: string) => void;
+  updateChapter: (chapter: Partial<Chapter> & { id: string }) => void;
+  deleteChapter: (chapterId: string) => void;
+  toggleChapterArchive: (chapterId: string) => void;
+  reorderChapters: (workId: string, startIndex: number, endIndex: number) => void;
+}
+
+export interface CharacterSlice {
+  addCharacter: (workId: string, name: string) => void;
+  updateCharacter: (character: Partial<Character> & { id: string }) => void;
+  deleteCharacter: (characterId: string) => void;
+  reorderCharacters: (workId: string, startIndex: number, endIndex: number) => void;
+  updateCharacterCustomField: (characterId: string, fieldId: string, value: any) => void;
+  updateCharacterRelationship: (charAId: string, charBId: string, description: string) => void;
+  removeCharacterRelationship: (charAId: string, charBId: string) => void;
+}
+
+export interface SceneSlice {
+  addScene: (params: { chapterId: string, title?: string }) => void;
+  updateScene: (scene: Partial<Scene> & { id: string }) => void;
+  deleteScene: (sceneId: string) => void;
+  reorderScenes: (chapterId: string, startIndex: number, endIndex: number) => void;
+  moveScene: (sceneId: string, newChapterId: string, newIndex: number) => void;
+  toggleSceneCharacter: (sceneId: string, characterId: string) => void;
+  updateSceneCharacterNote: (sceneId: string, characterId: string, note: string) => void;
+  toggleSceneEvent: (sceneId: string, eventId: string) => void;
+  reorderSceneEvents: (sceneId: string, startIndex: number, endIndex: number) => void;
+  toggleLensPin: (sceneId: string) => void;
+  splitSceneAtBlock: (sceneId: string, blockId: string) => void;
+}
+
+export interface TagSlice {
+  addTag: (tag: { workId: string; name: string; color?: string }) => string;
+  updateTag: (tag: Partial<Tag> & { id: string }) => void;
+  deleteTag: (tagId: string) => void;
+}
+
+export interface DeadlineSlice {
+  addDeadline: (deadline: { workId: string; title: string; date: string }) => void;
+  updateDeadline: (deadline: Partial<Deadline> & { id: string }) => void;
+  deleteDeadline: (deadlineId: string) => void;
+}
+
+export interface NoteSlice {
+  addNote: (params: { content: string; workId?: string | null; sceneId?: string | null; tagIds?: string[] }) => void;
+  updateNote: (note: Partial<Note> & { id: string }) => void;
+  deleteNote: (noteId: string) => void;
+  reassignNote: (noteId: string, workId: string | null, sceneId: string | null) => void;
+  addInboxTag: (tag: Omit<InboxTag, 'id'>) => string;
+  updateInboxTag: (tag: Partial<InboxTag> & { id: string }) => void;
+  deleteInboxTag: (tagId: string) => void;
+}
+
+export interface SnapshotSlice {
+  addSnapshot: (sceneId: string, name: string) => void;
+  renameSnapshot: (id: string, name: string) => void;
+  deleteSnapshot: (id: string) => void;
+  restoreSnapshot: (id: string) => void;
+}
+
+export interface TimelineSlice {
+  addTimelineEvent: (event: Omit<TimelineEvent, 'id' | 'order'> & { id?: string }) => void;
+  updateTimelineEvent: (event: Partial<TimelineEvent> & { id: string }) => void;
+  updateTimelineEvents: (events: (Partial<TimelineEvent> & { id: string })[]) => void;
+  updateTimelineEventCharacterAction: (eventId: string, characterId: string, action: string) => void;
+  toggleTimelineEventLink: (eventId: string, targetEventId: string) => void;
+  toggleTimelineEventHorizontal: (eventId: string, targetEventId: string) => void;
+  toggleTimelineEventVertical: (eventId: string, targetEventId: string) => void;
+  deleteTimelineEvent: (eventId: string) => void;
+  reorderTimelineEvents: (workId: string, sourceId: string, destinationIndex: number, isSourcePool: boolean, isDestPool: boolean) => void;
+}
+
+export interface WorkSlice {
+  addWork: (title: string) => void;
+  updateWork: (work: Partial<Work> & { id: string }) => void;
+  deleteWork: (workId: string) => void;
+  reorderWorks: (startIndex: number, endIndex: number) => void;
+  setActiveWork: (workId: string) => void;
+  addCharacterField: (workId: string, field: CharacterFieldDef) => void;
+  updateCharacterField: (workId: string, fieldId: string, updates: Partial<CharacterFieldDef>) => void;
+  deleteCharacterField: (workId: string, fieldId: string) => void;
+  reorderCharacterFields: (workId: string, startIndex: number, endIndex: number) => void;
+}
+
+export interface ScriptSlice {
+  addScriptDraft: (draft: Omit<ScriptDraft, 'id' | 'createdAt'>) => void;
+  updateScriptDraft: (draft: Partial<ScriptDraft> & { id: string }) => void;
+  deleteScriptDraft: (draftId: string) => void;
+}
+
+export interface LocationSlice {
+  addLocation: (workId: string, name: string) => void;
+  updateLocation: (location: Partial<Location> & { id: string }) => void;
+  deleteLocation: (locationId: string) => void;
+  reorderLocations: (workId: string, startIndex: number, endIndex: number) => void;
+}
+

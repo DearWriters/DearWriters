@@ -1,0 +1,63 @@
+import React from 'react';
+import { X } from 'lucide-react';
+
+interface ShortcutModalProps {
+  onClose: () => void;
+}
+
+const shortcuts = [
+  { section: '全局', shortcuts: [
+    { keys: ['Esc'], description: '切换伪装 / 专注模式' },
+    { keys: ['Ctrl/Cmd', 'S'], description: '手动保存' },
+    { keys: ['Ctrl/Cmd', 'I'], description: '切换检查器' },
+    { keys: ['Ctrl/Cmd', 'Shift', 'K'], description: '打开快捷键面板' },
+  ]},
+  { section: '编辑器', shortcuts: [
+    { keys: ['Ctrl/Cmd', '/'], description: '切换块/透镜模式' },
+    { keys: ['Ctrl/Cmd', 'Enter'], description: '在下方添加块' },
+    { keys: ['Ctrl/Cmd', 'F'], description: '切换查找/替换' },
+    { keys: ['Ctrl/Cmd', 'Z'], description: '撤销' },
+    { keys: ['Ctrl/Cmd', 'Shift', 'Z'], description: '重做' },
+    { keys: ['Ctrl/Cmd', 'Y'], description: '重做' },
+  ]},
+  { section: '快速笔记', shortcuts: [
+    { keys: ['Ctrl/Cmd', 'Enter'], description: '保存到笔记' },
+    { keys: ['Esc'], description: '关闭' },
+  ]},
+];
+
+export function ShortcutModal({ onClose }: ShortcutModalProps) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-stone-100 bg-stone-50/50">
+          <h2 className="text-lg font-semibold text-stone-800">键盘快捷键</h2>
+          <button onClick={onClose} className="p-1 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-md transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-4 md:p-6 overflow-y-auto max-h-[70vh] pb-24 md:pb-6">
+          {shortcuts.map((section) => (
+            <div key={section.section} className="mb-6 last:mb-0">
+              <h3 className="text-xs md:text-sm font-bold text-stone-500 uppercase tracking-wider mb-3">{section.section}</h3>
+              <div className="space-y-3 md:space-y-2">
+                {section.shortcuts.map((shortcut, idx) => (
+                  <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
+                    <span className="text-sm text-stone-700">{shortcut.description}</span>
+                    <div className="flex flex-wrap gap-1">
+                      {shortcut.keys.map((key, kIdx) => (
+                        <kbd key={kIdx} className="px-2 py-1 bg-stone-100 border border-stone-200 rounded text-[10px] md:text-xs font-mono text-stone-600">
+                          {key}
+                        </kbd>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

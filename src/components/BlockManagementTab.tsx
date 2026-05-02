@@ -1,0 +1,244 @@
+import React, { useState } from 'react';
+import { useStore } from '../store/stores/useStore';
+import { useShallow } from 'zustand/react/shallow';
+import { AlignLeft, Search, CheckCircle2, Circle, ChevronRight, ChevronDown, Folder, FileText, ExternalLink } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+export function BlockManagementTab() {
+  const { 
+    blocks, 
+    chapters, 
+    scenes, 
+    activeWorkId, 
+    updateBlock, 
+    setActiveTab, 
+    setActiveDocument 
+  } = useStore(useShallow(state => ({
+    blocks: state.blocks,
+    chapters: state.chapters,
+    scenes: state.scenes,
+    activeWorkId: state.activeWorkId,
+    updateBlock: state.updateBlock,
+    setActiveTab: state.setActiveTab,
+    setActiveDocument: state.setActiveDocument
+  })));
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>({});
+  const [showMainContent, setShowMainContent] = useState(false);
+
+  if (!activeWorkId) return null;
+
+  const workChapters = chapters.filter(c => c.workId === activeWorkId).sort((a, b) => a.order - b.order);
+  const workScenes = scenes.filter(s => workChapters.some(c => c.id === s.chapterId)).sort((a, b) => a.order - b.order);
+  
+  const allBlocks = blocks.filter(b => 
+    (workChapters.some(c => c.id === b.documentId) || workScenes.some(s => s.id === b.documentId))
+  );
+
+  const filteredBlocks = allBlocks.filter(b => {
+    // Filter by document
+    if (selectedDocId) {
+      const isChapter = workChapters.some(c => c.id === selectedDocId);
+      if (isChapter) {
+        const childSceneIds = workScenes.filter(s => s.chapterId === selectedDocId).map(s => s.id);
+        if (b.documentId !== selectedDocId && !childSceneIds.includes(b.documentId)) return false;
+      } else if (b.documentId !== selectedDocId) {
+        return false;
+      }
+    }
+    
+    // Filter by search
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (b.description && b.description.toLowerCase().includes(term)) ||
+           (b.content && b.content.toLowerCase().includes(term));
+  });
+
+  const groupedBlocks: Record<string, typeof allBlocks> = filteredBlocks.reduce((acc, block) => {
+    if (!acc[block.documentId]) {
+      acc[block.documentId] = [];
+    }
+    acc[block.documentId].push(block);
+    return acc;
+  }, {} as Record<string, typeof allBlocks>);
+
+  const toggleChapter = (chapterId: string) => {
+    setExpandedChapters(prev => ({ ...prev, [chapterId]: !prev[chapterId] }));
+  };
+
+  const handleSelectDoc = (id: string | null) => {
+    setSelectedDocId(id);
+    setShowMainContent(true);
+  };
+
+  return (
+    <div className="flex-1 flex h-full bg-stone-50 overflow-hidden">
+      {/* Sidebar Tree */}
+      <div className={cn(
+        "border-r border-stone-200 bg-white overflow-y-auto p-4 space-y-1 transition-all duration-300",
+        showMainContent ? "hidden md:flex w-64" : "w-full md:w-64 flex"
+      )}>
+        <div className="w-full">
+          <button
+            onClick={() => handleSelectDoc(null)}
+            className={cn(
+              "w-full text-left px-2 py-1.5 rounded-md text-sm font-medium transition-colors",
+              !selectedDocId ? "bg-wood-50 text-wood-700" : "text-stone-600 hover:bg-stone-100"
+            )}
+          >
+            所有块
+          </button>
+          {workChapters.map(chapter => (
+            <div key={chapter.id}>
+              <div className="flex items-center">
+                <button onClick={() => toggleChapter(chapter.id)} className="p-1 text-stone-400 hover:text-stone-600">
+                  {expandedChapters[chapter.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+                <button
+                  onClick={() => handleSelectDoc(chapter.id)}
+                  className={cn(
+                    "flex-1 text-left px-2 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center",
+                    selectedDocId === chapter.id ? "bg-wood-50 text-wood-700" : "text-stone-600 hover:bg-stone-100"
+                  )}
+                >
+                  <Folder size={14} className="mr-2" />
+                  {chapter.title || '未命名章节'}
+                </button>
+              </div>
+              {expandedChapters[chapter.id] && (
+                <div className="ml-6 space-y-1">
+                  {workScenes.filter(s => s.chapterId === chapter.id).map(scene => (
+                    <button
+                      key={scene.id}
+                      onClick={() => handleSelectDoc(scene.id)}
+                      className={cn(
+                        "w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors flex items-center",
+                        selectedDocId === scene.id ? "bg-wood-50 text-wood-700" : "text-stone-500 hover:bg-stone-100"
+                      )}
+                    >
+                      <FileText size={14} className="mr-2" />
+                      {scene.title || '未命名场景'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className={cn(
+        "flex-1 flex flex-col h-full overflow-hidden transition-all duration-300",
+        showMainContent ? "flex" : "hidden md:flex"
+      )}>
+        <div className="p-4 md:p-6 border-b border-stone-200 bg-white shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            {showMainContent && (
+              <button onClick={() => setShowMainContent(false)} className="md:hidden p-2 -ml-2 text-stone-500 hover:text-stone-700">
+                <ChevronRight size={20} className="rotate-180" />
+              </button>
+            )}
+            <div>
+              <h2 className="text-xl md:text-2xl font-serif font-semibold text-stone-900">块描述</h2>
+              <p className="hidden md:block text-xs md:text-sm sm:text-base text-stone-500 mt-1">管理和查看作品中所有块的描述。</p>
+            </div>
+          </div>
+          
+          <div className="w-full sm:w-64 relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+            <input
+              type="text"
+              placeholder="搜索描述或内容..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-wood-500/20"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
+          <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
+            {Object.entries(groupedBlocks).map(([docId, blocks]) => {
+              const doc = workChapters.find(c => c.id === docId) || workScenes.find(s => s.id === docId);
+              if (!doc) return null;
+              return (
+                <div key={docId} className="bg-white rounded-lg border border-stone-200 shadow-sm overflow-hidden">
+                  <div className="bg-stone-100 px-4 py-3 border-b border-stone-200">
+                    <h3 className="font-semibold text-stone-800 flex items-center">
+                      <AlignLeft size={16} className="mr-2 text-stone-500" />
+                      {doc.title}
+                    </h3>
+                  </div>
+                  <div className="divide-y divide-stone-100">
+                    {(blocks || []).map(block => (
+                      <div key={block.id} className="p-4 flex gap-4 hover:bg-stone-50 transition-colors">
+                        <button
+                          onClick={() => updateBlock({ id: block.id, completed: !block.completed })}
+                          className={cn(
+                            "mt-1 shrink-0 transition-colors",
+                            block.completed ? "text-wood-500" : "text-stone-300 hover:text-stone-400"
+                          )}
+                        >
+                          {block.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                        </button>
+                        <div className="flex-1 space-y-2">
+                          <textarea
+                            value={block.description || ''}
+                            onChange={(e) => updateBlock({ id: block.id, description: e.target.value })}
+                            placeholder="未命名块"
+                            className={cn(
+                              "w-full bg-transparent border-none outline-none resize-none text-stone-900 font-medium placeholder:text-stone-400 focus:ring-0 p-0 whitespace-pre-wrap",
+                              !block.description ? "text-stone-400 italic" : ""
+                            )}
+                            rows={2}
+                            onInput={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.height = 'auto';
+                              target.style.height = `${target.scrollHeight}px`;
+                            }}
+                          />
+                          <div className="text-sm text-stone-500 bg-stone-50 p-2 rounded border border-stone-100 flex items-start gap-2 group/block">
+                            <div className="flex-1 line-clamp-2">
+                              {block.content || <span className="italic text-stone-400">空块</span>}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setActiveTab('design');
+                                setActiveDocument(block.documentId);
+                                setTimeout(() => {
+                                  const el = document.getElementById(`block-${block.id}`);
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    el.classList.add('ring-2', 'ring-wood-500', 'ring-offset-2', 'rounded-md');
+                                    setTimeout(() => el.classList.remove('ring-2', 'ring-wood-500', 'ring-offset-2', 'rounded-md'), 2000);
+                                  }
+                                }, 100);
+                              }}
+                              className="p-1 text-stone-400 hover:text-wood-600 hover:bg-wood-50 rounded transition-colors shrink-0 opacity-0 group-hover/block:opacity-100"
+                              title="在编辑器中跳转到块"
+                            >
+                              <ExternalLink size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            
+            {Object.keys(groupedBlocks).length === 0 && (
+              <div className="text-center py-12 text-stone-500">
+                未找到匹配搜索或选择的块。
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

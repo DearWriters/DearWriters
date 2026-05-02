@@ -1,0 +1,673 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import { useStore } from '../store/stores/useStore';
+import { useShallow } from 'zustand/react/shallow';
+import { Scene } from '../store/types';
+import { countWords, cn } from '../lib/utils';
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Calendar as CalendarIcon, Target, BookOpen, ChevronDown, ChevronRight as ChevronRightIcon, X, BarChart3, Undo } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+export function DeadlineTab({ workId }: { workId?: string }) {
+  const { 
+    works, 
+    chapters, 
+    scenes, 
+    blocks, 
+    updateChapter,
+    updateScene,
+    setActiveWork,
+    setDeadlineViewMode,
+    deadlineViewMode,
+    dailyWordCounts,
+    resetDailyWordCount,
+    updateDailyWordCountManual
+  } = useStore(useShallow(state => ({
+    works: state.works,
+    chapters: state.chapters,
+    scenes: state.scenes,
+    blocks: state.blocks,
+    updateChapter: state.updateChapter,
+    updateScene: state.updateScene,
+    setActiveWork: state.setActiveWork,
+    setDeadlineViewMode: state.setDeadlineViewMode,
+    deadlineViewMode: state.deadlineViewMode,
+    dailyWordCounts: state.dailyWordCounts,
+    resetDailyWordCount: state.resetDailyWordCount,
+    updateDailyWordCountManual: state.updateDailyWordCountManual
+  })));
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [manualWordCount, setManualWordCount] = useState<string>('');
+  
+  const today = new Date().toISOString().split('T')[0];
+
+  const chartData = useMemo(() => {
+    return Object.entries(dailyWordCounts || {})
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, stats]) => ({
+        date: date.slice(5), // MM-DD
+        total: stats.totalWords,
+        netChange: stats.netChange,
+        grossAdded: stats.grossAdded
+      }));
+  }, [dailyWordCounts]);
+
+  const [expandedWorks, setExpandedWorks] = useState<Record<string, boolean>>({});
+  const [showChart, setShowChart] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // Initialize expanded works (first work expanded by default)
+  useEffect(() => {
+    if (works.length > 0 && Object.keys(expandedWorks).length === 0) {
+      const sortedWorks = [...works].sort((a, b) => a.order - b.order);
+      setExpandedWorks({ [sortedWorks[0].id]: true });
+    }
+  }, [works]);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (new Date(year, month, 1).getDay() + 6) % 7;
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+  // Word count calculations
+  const getDocumentWordCount = (docId: string) => {
+    const docBlocks = blocks.filter(b => b.documentId === docId && (!b.isLens));
+    return docBlocks.reduce((sum, b) => sum + countWords(b.content), 0);
+  };
+
+  const getSceneWordCount = (sceneId: string) => {
+    return getDocumentWordCount(sceneId);
+  };
+
+  const getChapterWordCount = (chapterId: string) => {
+    let count = getDocumentWordCount(chapterId);
+    const chapterScenes = scenes.filter(s => s.chapterId === chapterId);
+    for (const scene of chapterScenes) {
+      count += getSceneWordCount(scene.id);
+    }
+    return count;
+  };
+
+  const getWorkWordCount = (workId: string) => {
+    const workChapters = chapters.filter(c => c.workId === workId);
+    let count = 0;
+    for (const chapter of workChapters) {
+      count += getChapterWordCount(chapter.id);
+    }
+    return count;
+  };
+
+  const isSceneCompleted = (scene: Scene) => {
+    return scene.statusColor === 'green';
+  };
+
+  // Get all chapters and scenes across all works that have a goal set and are not completed
+  const todoTasks = useMemo(() => {
+    const chapterTasks = chapters
+      .filter(c => (!workId || c.workId === workId) && c.goalWordCount && !c.completed && !c.deadline)
+      .map(c => ({ ...c, type: 'chapter' as const }));
+
+    const sceneTasks = scenes
+      .filter(s => {
+        const chapter = chapters.find(c => c.id === s.chapterId);
+        return (!workId || chapter?.workId === workId) && s.goalWordCount && !isSceneCompleted(s) && !s.deadline;
+      })
+      .map(s => ({ ...s, type: 'scene' as const }));
+
+    return [...chapterTasks, ...sceneTasks].sort((a, b) => {
+      const workAId = a.type === 'chapter' ? a.workId : chapters.find(c => c.id === a.chapterId)?.workId;
+      const workBId = b.type === 'chapter' ? b.workId : chapters.find(c => c.id === b.chapterId)?.workId;
+      
+      const workA = works.find(w => w.id === workAId);
+      const workB = works.find(w => w.id === workBId);
+      
+      if (workA && workB && workA.order !== workB.order) {
+        return workA.order - workB.order;
+      }
+      return a.order - b.order;
+    });
+  }, [chapters, scenes, works, workId]);
+
+  const handleUpdateGoal = (id: string, type: 'chapter' | 'scene', goalWordCount: number | undefined) => {
+    if (type === 'chapter') {
+      updateChapter({ id, goalWordCount });
+    } else {
+      updateScene({ id, goalWordCount });
+    }
+  };
+
+  const handleToggleComplete = (id: string, type: 'chapter' | 'scene', completed: boolean) => {
+    if (type === 'chapter') {
+      updateChapter({ id, completed });
+    } else {
+      updateScene({ id, statusColor: completed ? 'green' : undefined });
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dateString: string) => {
+    e.preventDefault();
+    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    if (data && data.id) {
+      if (data.type === 'chapter') {
+        updateChapter({ id: data.id, deadline: dateString });
+      } else {
+        updateScene({ id: data.id, deadline: dateString });
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const filteredWorks = workId ? works.filter(w => w.id === workId) : works;
+
+  return (
+    <div className={cn(
+      "flex-1 flex flex-col md:flex-row overflow-hidden bg-stone-50",
+      "pb-16 md:pb-0" // Space for mobile bottom nav
+    )}>
+      {/* Left Panel: Projects, Chapters, and To-Do */}
+      <div className="hidden md:flex w-full md:w-1/4 md:min-w-[280px] border-b md:border-b-0 md:border-r border-stone-200 bg-white flex-col h-1/3 md:h-full overflow-y-auto shrink-0">
+        <div className="p-4 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+          <h2 className="text-lg font-serif font-semibold text-stone-800 flex items-center">
+            <Target className="mr-2 text-wood-600" size={20} />
+            目标与待办
+          </h2>
+          <div className="flex items-center space-x-1 bg-stone-100 rounded-md p-1 self-start sm:self-auto">
+            <button
+              onClick={() => setDeadlineViewMode('local')}
+              className={cn(
+                "px-3 py-1 rounded text-xs font-medium transition-colors",
+                deadlineViewMode === 'local' ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
+              )}
+            >
+              当前作品
+            </button>
+            <button
+              onClick={() => setDeadlineViewMode('global')}
+              className={cn(
+                "px-3 py-1 rounded text-xs font-medium transition-colors",
+                deadlineViewMode === 'global' ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
+              )}
+            >
+              所有作品
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-6 flex-1 overflow-y-auto">
+          {/* To-Do Area */}
+          {todoTasks.length > 0 && (
+            <div className="bg-wood-50 rounded-lg p-3 border border-wood-100">
+              <h3 className="text-sm font-semibold text-wood-800 mb-2 flex items-center">
+                <CalendarIcon size={14} className="mr-1.5" />
+                未安排的任务（拖拽至日历）
+              </h3>
+              <div className="space-y-2">
+                {todoTasks.map(task => {
+                  const workId = task.type === 'chapter' ? task.workId : chapters.find(c => c.id === task.chapterId)?.workId;
+                  const work = works.find(w => w.id === workId);
+                  const currentWords = task.type === 'chapter' ? getChapterWordCount(task.id) : getSceneWordCount(task.id);
+                  const percentage = task.goalWordCount ? Math.min(100, Math.round((currentWords / task.goalWordCount) * 100)) : 0;
+                  return (
+                    <div
+                      key={task.id}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', JSON.stringify({ id: task.id, type: task.type }));
+                      }}
+                      className="bg-white p-2 rounded border border-wood-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-wood-400 transition-colors relative group"
+                    >
+                      <button
+                        onClick={() => handleUpdateGoal(task.id, task.type, undefined)}
+                        className="absolute top-1 right-1 p-1 text-stone-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="移除目标"
+                      >
+                        <X size={14} />
+                      </button>
+                      <div className="text-xs font-medium text-stone-500 mb-1 pr-5">{work?.title} {task.type === 'scene' ? '(场景)' : '(章节)'}</div>
+                      <div className="text-sm font-medium text-stone-800 pr-5">{task.title}</div>
+                      <div className="mt-2">
+                        <div className="flex justify-between items-center text-xs text-stone-500 mb-1">
+                          <span>{currentWords} / {task.goalWordCount} 字</span>
+                          <span className="font-medium text-emerald-600">{percentage}%</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Projects and Chapters */}
+          <div className="space-y-6">
+            {[...filteredWorks].sort((a, b) => a.order - b.order).map(work => {
+              const workTotalWords = getWorkWordCount(work.id);
+              const workChapters = chapters
+                .filter(c => c.workId === work.id)
+                .sort((a, b) => {
+                  const aCompleted = !!a.completed;
+                  const bCompleted = !!b.completed;
+                  if (aCompleted === bCompleted) {
+                    return a.order - b.order;
+                  }
+                  return aCompleted ? 1 : -1;
+                });
+              
+              const isExpanded = expandedWorks[work.id];
+
+              return (
+                <div key={work.id} className="space-y-3">
+                  {!workId ? (
+                    <div 
+                      className="flex items-center justify-between pb-2 border-b border-stone-100 cursor-pointer hover:bg-stone-50 p-1 -mx-1 rounded"
+                      onClick={() => {
+                        setActiveWork(work.id);
+                        setDeadlineViewMode('local');
+                      }}
+                    >
+                      <h3 className="font-semibold text-stone-800 flex items-center">
+                        {isExpanded ? (
+                          <ChevronDown size={16} className="mr-1 text-stone-400" />
+                        ) : (
+                          <ChevronRightIcon size={16} className="mr-1 text-stone-400" />
+                        )}
+                        <BookOpen size={16} className="mr-2 text-stone-400" />
+                        {work.title}
+                      </h3>
+                      <span className="text-xs font-medium bg-stone-100 text-stone-600 px-2 py-1 rounded-full">
+                        {workTotalWords} 字
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between pb-2 border-b border-stone-100 p-1 -mx-1">
+                      <span className="text-sm font-semibold text-stone-800">总字数</span>
+                      <span className="text-xs font-medium bg-stone-100 text-stone-600 px-2 py-1 rounded-full">
+                        {workTotalWords} 字
+                      </span>
+                    </div>
+                  )}
+
+                  {(isExpanded || !!workId) && (
+                    <div className={cn("space-y-4", !workId && "pl-2")}>
+                      {workChapters.map(chapter => {
+                        const chapterWords = getChapterWordCount(chapter.id);
+                        const chapterScenes = scenes.filter(s => s.chapterId === chapter.id).sort((a, b) => a.order - b.order);
+                        
+                        return (
+                          <div key={chapter.id} className="space-y-2">
+                            <div className="bg-stone-50 p-2.5 rounded-md border border-stone-200">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center flex-1 min-w-0 pr-2">
+                                  <button
+                                    onClick={() => handleToggleComplete(chapter.id, 'chapter', !chapter.completed)}
+                                    className={cn(
+                                      "mr-2 shrink-0 transition-colors",
+                                      chapter.completed ? "text-emerald-500" : "text-stone-300 hover:text-stone-400"
+                                    )}
+                                  >
+                                    {chapter.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                                  </button>
+                                  <span className={cn(
+                                    "text-sm font-medium truncate transition-colors",
+                                    chapter.completed ? "text-stone-400 line-through" : "text-stone-700"
+                                  )}>
+                                    {chapter.title}
+                                  </span>
+                                </div>
+                                <span className="text-xs text-stone-500 shrink-0">
+                                  {chapterWords} 字
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center pl-6">
+                                <label className="text-xs text-stone-500 mr-2">目标:</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={chapter.goalWordCount || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                                    handleUpdateGoal(chapter.id, 'chapter', val);
+                                  }}
+                                  placeholder="设置字数目标..."
+                                  className="flex-1 min-w-0 text-xs px-2 py-1 bg-white border border-stone-200 rounded focus:outline-none focus:ring-1 focus:ring-wood-500"
+                                  disabled={chapter.completed}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Scenes under Chapter */}
+                            <div className="pl-6 space-y-2">
+                              {chapterScenes.map(scene => {
+                                const sceneWords = getSceneWordCount(scene.id);
+                                const completed = isSceneCompleted(scene);
+                                return (
+                                  <div key={scene.id} className="bg-white p-2 rounded border border-stone-100 shadow-sm">
+                                    <div className="flex items-start justify-between mb-1.5">
+                                      <div className="flex items-center flex-1 min-w-0 pr-2">
+                                        <button
+                                          onClick={() => handleToggleComplete(scene.id, 'scene', !completed)}
+                                          className={cn(
+                                            "mr-2 shrink-0 transition-colors",
+                                            completed ? "text-emerald-500" : "text-stone-300 hover:text-stone-400"
+                                          )}
+                                        >
+                                          {completed ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                                        </button>
+                                        <span className={cn(
+                                          "text-xs font-medium truncate transition-colors",
+                                          completed ? "text-stone-400 line-through" : "text-stone-600"
+                                        )}>
+                                          {scene.title}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-stone-400 shrink-0">
+                                        {sceneWords} 字
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center pl-5">
+                                      <label className="text-[10px] text-stone-400 mr-2">目标:</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={scene.goalWordCount || ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                                          handleUpdateGoal(scene.id, 'scene', val);
+                                        }}
+                                        placeholder="设置字数目标..."
+                                        className="flex-1 min-w-0 text-[10px] px-1.5 py-0.5 bg-stone-50 border border-stone-100 rounded focus:outline-none focus:ring-1 focus:ring-wood-500"
+                                        disabled={completed}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel: Calendar */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-stone-100 p-2">
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 flex flex-col h-full overflow-hidden">
+          {/* Calendar Header */}
+          <div className="flex items-center justify-between p-4 border-b border-stone-200">
+            <h2 className="text-xl font-serif font-semibold text-stone-800">
+              {monthNames[month]} {year}
+            </h2>
+            <div className="flex items-center space-x-2">
+              {showResetConfirm ? (
+                <div className="flex items-center gap-2 text-xs mr-2">
+                  <span className="text-red-600 font-medium">确认？</span>
+                  <button onClick={() => { resetDailyWordCount(today); setShowResetConfirm(false); }} className="text-red-600 font-bold hover:text-red-800">是</button>
+                  <button onClick={() => setShowResetConfirm(false)} className="text-stone-500 hover:text-stone-700">否</button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowResetConfirm(true)}
+                  className="flex items-center gap-1 text-red-600 text-xs font-medium hover:text-red-700 transition-colors mr-2"
+                  title="重置今日字数"
+                >
+                  <Undo size={14} /> 重置
+                </button>
+              )}
+              <button 
+                onClick={() => setShowChart(!showChart)}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  showChart ? "bg-wood-100 text-wood-700" : "hover:bg-stone-100 text-stone-600"
+                )}
+                title="切换图表视图"
+              >
+                <BarChart3 size={20} />
+              </button>
+              <button onClick={prevMonth} className="p-1.5 rounded-md hover:bg-stone-100 text-stone-600 transition-colors">
+                <ChevronLeft size={20} />
+              </button>
+              <button onClick={nextMonth} className="p-1.5 rounded-md hover:bg-stone-100 text-stone-600 transition-colors">
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Chart View */}
+          {showChart && (
+            <div className="h-48 p-4 border-b border-stone-200 bg-stone-50">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="total" stroke="#9c8462" name="Total" />
+                  <Line type="monotone" dataKey="netChange" stroke="#f59e0b" name="Net" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Calendar Grid */}
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Day Names */}
+            <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-50 shrink-0">
+              {dayNames.map((day, i) => (
+                <div key={day} className={cn(
+                  "py-2 text-center text-xs font-semibold uppercase tracking-wider",
+                  (i === 5 || i === 6) ? "text-stone-400" : "text-stone-600"
+                )}>
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Days */}
+            <div className="flex-1 grid grid-cols-7 auto-rows-fr overflow-hidden">
+              {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                <div key={`empty-${i}`} className="border-b border-r border-stone-100 bg-stone-50/50" />
+              ))}
+              
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = new Date().toISOString().split('T')[0] === dateString;
+                const dayOfWeek = (new Date(year, month, day).getDay() + 6) % 7;
+                const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
+                
+                // Find tasks for this day
+                const dayChapterTasks = chapters
+                  .filter(c => c.deadline === dateString)
+                  .map(c => ({ ...c, type: 'chapter' as const }));
+                
+                const daySceneTasks = scenes
+                  .filter(s => s.deadline === dateString)
+                  .map(s => ({ ...s, type: 'scene' as const }));
+
+                const dayTasks = [...dayChapterTasks, ...daySceneTasks].sort((a, b) => {
+                  const workAId = a.type === 'chapter' ? a.workId : chapters.find(c => c.id === a.chapterId)?.workId;
+                  const workBId = b.type === 'chapter' ? b.workId : chapters.find(c => c.id === b.chapterId)?.workId;
+                  const workA = works.find(w => w.id === workAId);
+                  const workB = works.find(w => w.id === workBId);
+                  if (workA && workB && workA.order !== workB.order) {
+                    return workA.order - workB.order;
+                  }
+                  return a.order - b.order;
+                });
+
+                return (
+                  <div 
+                    key={day} 
+                    onDrop={(e) => handleDrop(e, dateString)}
+                    onDragOver={handleDragOver}
+                    className={cn(
+                      "border-b border-r border-stone-200 p-1 flex flex-col transition-colors min-h-0",
+                      isWeekend ? "bg-stone-50/80" : "bg-white",
+                      isToday && "ring-2 ring-inset ring-wood-500/50"
+                    )}
+                  >
+                    <div 
+                      className="flex justify-between items-start mb-1 cursor-pointer"
+                      onClick={() => setSelectedDate(dateString)}
+                    >
+                      <span className={cn(
+                        "text-sm font-medium w-6 h-6 flex items-center justify-center rounded-full",
+                        isToday ? "bg-wood-500 text-white" : (isWeekend ? "text-stone-400" : "text-stone-700")
+                      )}>
+                        {day}
+                      </span>
+                      {dailyWordCounts[dateString] && (
+                        <div className="text-[10px] text-stone-500 text-right">
+                          <div>{dailyWordCounts[dateString].totalWords}</div>
+                          <div className={dailyWordCounts[dateString].netChange > 0 ? "text-wood-600" : "text-red-600"}>
+                            {dailyWordCounts[dateString].netChange > 0 ? '+' : ''}{dailyWordCounts[dateString].netChange}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                      {dayTasks.map(task => {
+                        const workId = task.type === 'chapter' ? task.workId : chapters.find(c => c.id === task.chapterId)?.workId;
+                        const work = works.find(w => w.id === workId);
+                        const currentWords = task.type === 'chapter' ? getChapterWordCount(task.id) : getSceneWordCount(task.id);
+                        const completed = task.type === 'chapter' ? !!task.completed : isSceneCompleted(task as Scene);
+                        const percentage = task.goalWordCount ? Math.min(100, Math.round((currentWords / task.goalWordCount) * 100)) : 0;
+                        return (
+                          <div 
+                            key={task.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', JSON.stringify({ id: task.id, type: task.type }));
+                            }}
+                            className={cn(
+                              "text-xs p-1.5 rounded border shadow-sm group relative cursor-grab active:cursor-grabbing",
+                              completed 
+                                ? "bg-stone-100 border-stone-200 text-stone-500" 
+                                : "bg-emerald-50 border-emerald-200 text-emerald-900"
+                            )}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="font-medium truncate pr-4" title={`${work?.title} - ${task.title}`}>
+                                {task.type === 'scene' && <span className="text-[10px] opacity-60 mr-1">[Scene]</span>}
+                                {task.title}
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (task.type === 'chapter') {
+                                    updateChapter({ id: task.id, deadline: undefined });
+                                  } else {
+                                    updateScene({ id: task.id, deadline: undefined });
+                                  }
+                                }}
+                                className="opacity-0 group-hover:opacity-100 absolute top-1 right-1 text-stone-400 hover:text-red-500 transition-opacity"
+                                title="Remove from calendar"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                            <div className="mt-1.5">
+                              <div className="text-[10px] opacity-80 flex justify-between items-center mb-1">
+                                <span className="truncate max-w-[60px]">{work?.title}</span>
+                                <span className="font-medium">{percentage}%</span>
+                              </div>
+                              <div className={cn(
+                                "h-1 w-full rounded-full overflow-hidden",
+                                completed ? "bg-stone-200" : "bg-emerald-200/50"
+                              )}>
+                                <div 
+                                  className={cn(
+                                    "h-full rounded-full transition-all duration-300",
+                                    completed ? "bg-stone-400" : "bg-emerald-500"
+                                  )}
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Date Edit Modal */}
+      {selectedDate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-80">
+            <h3 className="text-lg font-semibold mb-4">编辑 {selectedDate} 的统计数据</h3>
+            <div className="space-y-4">
+              <input 
+                type="number"
+                value={manualWordCount}
+                onChange={(e) => setManualWordCount(e.target.value)}
+                placeholder="输入当日总字数"
+                className="w-full p-2 border rounded"
+              />
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    const totalWords = parseInt(manualWordCount) || 0;
+                    const yesterday = new Date(new Date(selectedDate!).setDate(new Date(selectedDate!).getDate() - 1)).toISOString().split('T')[0];
+                    const yesterdayTotal = dailyWordCounts[yesterday]?.totalWords || 0;
+                    const netChange = totalWords - yesterdayTotal;
+                    updateDailyWordCountManual(selectedDate!, 0, netChange, totalWords);
+                    setSelectedDate(null);
+                    setManualWordCount('');
+                  }}
+                  className="flex-1 bg-wood-600 text-white py-2 rounded hover:bg-wood-700"
+                >
+                  保存
+                </button>
+                <button 
+                  onClick={() => {
+                    resetDailyWordCount(selectedDate);
+                    setSelectedDate(null);
+                  }}
+                  className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700"
+                >
+                  重置
+                </button>
+                <button 
+                  onClick={() => setSelectedDate(null)}
+                  className="flex-1 bg-stone-200 py-2 rounded hover:bg-stone-300"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
